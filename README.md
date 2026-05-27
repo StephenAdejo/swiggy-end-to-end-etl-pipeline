@@ -147,17 +147,24 @@ without over-indexing.
 
 ---
 
-## Project Status
+## Project Status & Roadmap
 
-- [x] Raw inspection and profiling
+### Completed
 - [x] Staging layer with cleaning and standardisation
-- [x] Data quality report
-- [x] Deduplication layer
+- [x] Data quality report (8 checks, persisted as table)
+- [x] Deduplication via ROW_NUMBER()
 - [x] Star schema (fact + 5 dimensions)
 - [x] ETL job logging and referential integrity validation
-- [ ] Analytics queries and KPI layer (in progress)
-- [ ] Power BI dashboard (in progress)
 
+### In Progress
+- [ ] Analytics queries and KPI layer
+- [ ] Power BI dashboard
+
+### Planned (v2)
+- [ ] Apache Airflow orchestration
+- [ ] Incremental loading strategy
+- [ ] Partitioning for performance
+- [ ] Grafana monitoring integration
 ---
 
 **Author:** Stephen Adejo  
