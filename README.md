@@ -51,6 +51,8 @@ and an analytics layer designed to power a Power BI dashboard.
 
 ## Project Architecture
 
+![Swiggy ETL Pipeline – Star Schema Data Warehouse](docs/architecture_diagram.png)
+
 ```
 ┌─────────┐    ┌─────────┐    ┌──────────────┐    ┌───────────────┐    ┌─────────────┐    ┌──────────┐
 │ Raw CSV │ →  │ Staging │ →  │ Data Quality │ →  │ Deduplication │ →  │ Star Schema │ →  │ Power BI │
