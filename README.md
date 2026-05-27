@@ -51,7 +51,7 @@ and an analytics layer designed to power a Power BI dashboard.
 
 ## Project Architecture
 
-![Swiggy ETL Pipeline – Star Schema Data Warehouse](docs/docs/architecture_diagram.png)
+![Swiggy ETL Pipeline – Star Schema Data Warehouse](docs/architecture_diagram.png)
 *Architecture diagram illustrating the pipeline design and data flow.*
 
 ```
