@@ -160,7 +160,7 @@ without over-indexing.
 - [x] ETL job logging and referential integrity validation
 
 ### In Progress
-- [ ] Analytics queries and KPI layer
+- [x] Analytics queries and KPI layer
 - [ ] Power BI dashboard
 
 ### Planned (v2)
