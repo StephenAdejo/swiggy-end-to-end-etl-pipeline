@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swiggy ETL Pipeline — Stephen Adejo</title>
+  <meta name="description" content="A production-grade 6-layer ETL pipeline transforming raw Swiggy food delivery data into a star schema warehouse. Built with MySQL 8, Power BI, and analytics engineering best practices." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #0e0e0e;
+      --paper: #f7f5f0;
+      --mid: #e2ddd5;
+      --accent: #1a1a2e;
+      --gold: #c8a84b;
+      --dim: #6e6858;
+      --white: #ffffff;
+      --green: #2a7a2a;
+      --mono: 'DM Mono', monospace;
+      --serif: 'DM Serif Display', serif;
+      --sans: 'Outfit', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-weight: 400;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── LAYOUT ── */
+    .site { max-width: 920px; margin: 0 auto; padding: 0 32px 100px; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0 20px;
+      border-bottom: 1px solid var(--mid);
+      position: sticky;
+      top: 0;
+      background: var(--paper);
+      z-index: 10;
+    }
+    .nav-brand { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: .04em; }
+    .nav-brand a { color: inherit; text-decoration: none; }
+    .nav-links { display: flex; gap: 24px; }
+    .nav-links a {
+      font-size: 12px;
+      color: var(--dim);
+      text-decoration: none;
+      font-family: var(--mono);
+      letter-spacing: .03em;
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+
+    /* ── HERO ── */
+    .hero { padding: 72px 0 56px; border-bottom: 1px solid var(--mid); }
+    .hero-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--gold);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-family: var(--serif);
+      font-size: clamp(38px, 6vw, 60px);
+      line-height: 1.08;
+      margin-bottom: 24px;
+      color: var(--ink);
+    }
+    .hero h1 em { font-style: italic; color: var(--dim); }
+    .hero-desc {
+      font-size: 17px;
+      color: var(--dim);
+      max-width: 580px;
+      line-height: 1.8;
+      margin-bottom: 36px;
+    }
+    .hero-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 32px; }
+    .meta-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+      background: var(--mid);
+      padding: 5px 13px;
+      border-radius: 2px;
+      letter-spacing: .04em;
+    }
+    .meta-pill.active { background: var(--accent); color: #fff; }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      padding: 16px 22px;
+      background: var(--accent);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      flex-shrink: 0;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+    .status-text { font-family: var(--mono); font-size: 12px; color: rgba(255,255,255,.65); }
+    .status-text strong { color: #fff; }
+
+    /* ── SECTIONS ── */
+    .section { padding: 64px 0 0; }
+    .section-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--gold);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-family: var(--serif);
+      font-size: 30px;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .section-sub { font-size: 15px; color: var(--dim); margin-bottom: 36px; }
+
+    /* ── PIPELINE ── */
+    .pipeline-wrap { overflow-x: auto; padding-bottom: 4px; margin: 8px 0 32px; }
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      min-width: 560px;
+    }
+    .pipe-step {
+      flex: 1;
+      padding: 16px 10px;
+      background: var(--white);
+      border: 1px solid var(--mid);
+      text-align: center;
+      position: relative;
+    }
+    .pipe-step:not(:first-child) { border-left: none; }
+    .pipe-step:first-child { border-radius: 4px 0 0 4px; }
+    .pipe-step:last-child { border-radius: 0 4px 4px 0; }
+    .pipe-step::after {
+      content: '→';
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: var(--mid);
+      z-index: 1;
+      background: var(--white);
+      padding: 0 2px;
+    }
+    .pipe-step:last-child::after { display: none; }
+    .pipe-num { font-family: var(--mono); font-size: 10px; color: var(--gold); margin-bottom: 5px; }
+    .pipe-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink); }
+    .pipe-table { font-size: 10px; color: var(--dim); margin-top: 5px; }
+
+    /* ── STAT GRID ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 12px 0 0;
+    }
+    .stat-card {
+      background: var(--white);
+      border: 1px solid var(--mid);
+      border-radius: 4px;
+      padding: 20px;
+    }
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .stat-value { font-family: var(--serif); font-size: 32px; color: var(--ink); }
+    .stat-note { font-size: 12px; color: var(--dim); margin-top: 5px; }
+
+    /* ── ORIGIN STORY ── */
+    .callout {
+      border-left: 3px solid var(--gold);
+      padding: 20px 24px;
+      background: var(--white);
+      border-radius: 0 4px 4px 0;
+      margin: 24px 0;
+    }
+    .callout p { font-size: 15px; color: var(--dim); line-height: 1.8; }
+    .callout p strong { color: var(--ink); font-weight: 500; }
+
+    /* ── DECISIONS ── */
+    .decisions { list-style: none; margin: 8px 0; }
+    .decisions li {
+      padding: 20px 0;
+      border-bottom: 1px solid var(--mid);
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .decisions li:last-child { border-bottom: none; }
+    .dec-key { font-family: var(--mono); font-size: 11px; color: var(--gold); padding-top: 2px; }
+    .dec-val { font-size: 14px; color: var(--dim); line-height: 1.75; }
+    .dec-val strong { color: var(--ink); font-weight: 500; }
+
+    /* ── COMPARE TABLE ── */
+    .compare-wrap { overflow-x: auto; margin: 12px 0; }
+    .compare {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 480px;
+    }
+    .compare th {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--dim);
+      border-bottom: 1px solid var(--mid);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 500;
+      background: var(--white);
+    }
+    .compare td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--mid);
+      color: var(--dim);
+      background: var(--white);
+    }
+    .compare td:first-child { font-weight: 500; color: var(--ink); font-size: 12px; }
+    .compare .better { color: var(--green); font-weight: 500; }
+    .compare tr:last-child td { border-bottom: none; }
+
+    /* ── IMAGE PLACEHOLDERS ── */
+    .img-placeholder {
+      background: var(--white);
+      border: 1.5px dashed var(--mid);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 48px 32px;
+      margin: 16px 0;
+      color: var(--dim);
+      text-align: center;
+    }
+    .img-placeholder .ph-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .img-placeholder .ph-hint { font-size: 12px; color: var(--mid); }
+    .ph-icon { font-size: 32px; opacity: .25; }
+
+    /* ── ROADMAP ── */
+    .roadmap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 12px 0;
+    }
+    @media (max-width: 560px) { .roadmap { grid-template-columns: 1fr; } }
+    .rm-card {
+      background: var(--white);
+      border: 1px solid var(--mid);
+      border-radius: 4px;
+      padding: 20px 22px;
+    }
+    .rm-title {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .rm-title.done { color: var(--green); }
+    .rm-title.progress { color: var(--gold); }
+    .rm-title.planned { color: var(--dim); }
+    .rm-section-gap { margin-top: 20px; }
+    .rm-item {
+      font-size: 13px;
+      color: var(--dim);
+      padding: 5px 0 5px 16px;
+      position: relative;
+      line-height: 1.5;
+    }
+    .rm-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 11px;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .rm-item.done::before { background: var(--green); }
+    .rm-item.progress::before { background: var(--gold); }
+    .rm-item.planned::before { background: transparent; border: 1.5px solid var(--mid); }
+
+    /* ── TECH STACK ── */
+    .stack { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+    .stack-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--mid);
+      padding: 6px 14px;
+      border-radius: 2px;
+    }
+
+    /* ── CTA ROW ── */
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 56px;
+      padding-top: 36px;
+      border-top: 1px solid var(--mid);
+      flex-wrap: wrap;
+    }
+    .btn {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .04em;
+      padding: 11px 22px;
+      border-radius: 3px;
+      text-decoration: none;
+      cursor: pointer;
+      border: 1px solid;
+      transition: background .15s, color .15s;
+      display: inline-block;
+    }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: #2a2a45; }
+    .btn-secondary { background: transparent; color: var(--ink); border-color: var(--mid); }
+    .btn-secondary:hover { background: var(--mid); }
+
+    /* ── FOOTER ── */
+    footer {
+      margin-top: 80px;
+      padding-top: 28px;
+      border-top: 1px solid var(--mid);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-name { font-family: var(--serif); font-size: 20px; color: var(--ink); }
+    .footer-meta { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .site { padding: 0 20px 80px; }
+      .nav-links { display: none; }
+      .decisions li { grid-template-columns: 1fr; gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="site">
+
+  <!-- NAV -->
+  <nav>
+    <span class="nav-brand">
+      <a href="https://github.com/YOUR_USERNAME/swiggy-etl-pipeline">stephen-adejo / swiggy-etl-pipeline</a>
+    </span>
+    <div class="nav-links">
+      <a href="#pipeline">pipeline</a>
+      <a href="#decisions">decisions</a>
+      <a href="#dashboard">dashboard</a>
+      <a href="#roadmap">roadmap</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-tag">End-to-End Data Engineering Project</div>
+    <h1>Swiggy ETL Pipeline<br><em>&amp; Analytics Warehouse</em></h1>
+    <p class="hero-desc">A production-grade data pipeline that transforms raw food delivery CSV data into a star schema warehouse — built after diagnosing a join explosion the original tutorial never covered.</p>
+    <div class="hero-meta">
+      <span class="meta-pill active">MySQL 8</span>
+      <span class="meta-pill active">Star Schema</span>
+      <span class="meta-pill active">Power BI</span>
+      <span class="meta-pill">6-layer ETL</span>
+      <span class="meta-pill">May 2026</span>
+    </div>
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <div class="status-text">
+        <strong>Pipeline status:</strong> Star schema complete &nbsp;·&nbsp; Analytics queries in progress &nbsp;·&nbsp; Power BI dashboard in progress
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section class="section" id="pipeline">
+    <div class="section-label">Architecture</div>
+    <div class="section-title">6-layer pipeline</div>
+    <div class="section-sub">Each layer has a single responsibility. Nothing bleeds into the next.</div>
+
+    <div class="pipeline-wrap">
+      <div class="pipeline">
+        <div class="pipe-step">
+          <div class="pipe-num">01</div>
+          <div class="pipe-name">Raw</div>
+          <div class="pipe-table">swiggy_data</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">02</div>
+          <div class="pipe-name">Staging</div>
+          <div class="pipe-table">stg_swiggy_data</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">03</div>
+          <div class="pipe-name">Quality</div>
+          <div class="pipe-table">dq_report</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">04</div>
+          <div class="pipe-name">Clean</div>
+          <div class="pipe-table">clean_data</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">05</div>
+          <div class="pipe-name">Flat Fact</div>
+          <div class="pipe-table">fact_swiggy_flat</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">06</div>
+          <div class="pipe-name">Star Schema</div>
+          <div class="pipe-table">fact + 5 dims</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPLACE THIS BLOCK when architecture_diagram.png is ready -->
+    <div class="img-placeholder" style="min-height: 220px;">
+      <div class="ph-icon">◫</div>
+      <p class="ph-label">Architecture diagram</p>
+      <p class="ph-hint">Replace with: &lt;img src="architecture_diagram.png" alt="Swiggy ETL architecture" /&gt;</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Pipeline layers</div>
+        <div class="stat-value">6</div>
+        <div class="stat-note">Raw → Star Schema</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">DQ checks</div>
+        <div class="stat-value">8</div>
+        <div class="stat-note">Persisted as queryable table</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dimensions</div>
+        <div class="stat-value">5</div>
+        <div class="stat-note">Date · Location · Restaurant · Category · Dish</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">SQL scripts</div>
+        <div class="stat-value">6</div>
+        <div class="stat-note">Modular, ordered execution</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ORIGIN STORY -->
+  <section class="section">
+    <div class="section-label">Origin story</div>
+    <div class="section-title">What went wrong — and why it matters</div>
+    <div class="callout">
+      <p>
+        The original tutorial used MS SQL Server. Replicating it in MySQL Workbench produced a <strong>join explosion</strong> — row counts multiplied across every join in a way the tutorial never addressed. Rather than switching tools to match the tutorial, the root cause was diagnosed: the staging layer had no deduplication, so duplicate rows were being multiplied by every subsequent join. Fixing it properly meant <strong>rebuilding the pipeline from the ground up</strong> using real analytics engineering practices. That decision turned a guided tutorial into an independent engineering project.
+      </p>
+    </div>
+  </section>
+
+  <!-- ENGINEERING DECISIONS -->
+  <section class="section" id="decisions">
+    <div class="section-label">Engineering decisions</div>
+    <div class="section-title">Why each choice was made</div>
+    <ul class="decisions">
+      <li>
+        <span class="dec-key">ETL job log</span>
+        <span class="dec-val">Every pipeline run records start time, end time, row count, and status. A team can monitor pipeline health <strong>without reading code</strong> — which is the standard in any remote data team.</span>
+      </li>
+      <li>
+        <span class="dec-key">Unknown sentinels</span>
+        <span class="dec-val">Each dimension table has an "unknown" record at id=1. Foreign keys fall back to this instead of NULL, <strong>preserving referential integrity</strong> even when source data is incomplete.</span>
+      </li>
+      <li>
+        <span class="dec-key">Non-destructive dedup</span>
+        <span class="dec-val">ROW_NUMBER() over the full business key partition keeps the latest record and discards duplicates <strong>without deleting anything</strong> — the complete audit trail stays in staging.</span>
+      </li>
+      <li>
+        <span class="dec-key">DQ as a layer</span>
+        <span class="dec-val">The quality report is persisted as a table, not just run and discarded. Quality metrics are <strong>queryable and comparable across pipeline runs</strong>.</span>
+      </li>
+      <li>
+        <span class="dec-key">Composite indexes</span>
+        <span class="dec-val">Indexes on date_id, restaurant_id, and category_id together <strong>support common analytical query patterns</strong> without over-indexing every possible column.</span>
+      </li>
+    </ul>
+  </section>
+
+  <!-- COMPARISON TABLE -->
+  <section class="section">
+    <div class="section-label">vs the tutorial</div>
+    <div class="section-title">What changed and why</div>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th>Original tutorial</th>
+            <th>This project</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Database</td><td>MS SQL Server</td><td class="better">MySQL 8</td></tr>
+          <tr><td>Pipeline layers</td><td>2 (Raw → Star)</td><td class="better">6 layered stages</td></tr>
+          <tr><td>Data quality</td><td>None</td><td class="better">8 checks, persisted as table</td></tr>
+          <tr><td>Deduplication</td><td>None</td><td class="better">ROW_NUMBER() — non-destructive</td></tr>
+          <tr><td>ETL audit</td><td>None</td><td class="better">Job log per pipeline run</td></tr>
+          <tr><td>Null handling</td><td>Basic</td><td class="better">Unknown sentinels in every dimension</td></tr>
+          <tr><td>Referential integrity</td><td>Assumed</td><td class="better">Validated with post-load LEFT JOIN checks</td></tr>
+          <tr><td>Problem origin</td><td>Tutorial-guided</td><td class="better">Self-diagnosed join explosion, independent solution</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="section" id="dashboard">
+    <div class="section-label">Reporting layer</div>
+    <div class="section-title">Power BI dashboard</div>
+    <div class="section-sub">Connecting to fact_orders_star and five dimension tables. In progress.</div>
+
+    <!-- REPLACE THIS BLOCK when dashboard screenshot is ready -->
+    <div class="img-placeholder" style="min-height: 280px;">
+      <div class="ph-icon">▦</div>
+      <p class="ph-label">Power BI dashboard screenshot</p>
+      <p class="ph-hint">Replace with: &lt;img src="dashboard_screenshot.png" alt="Power BI dashboard" /&gt;</p>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section class="section" id="roadmap">
+    <div class="section-label">Status</div>
+    <div class="section-title">Roadmap</div>
+    <div class="roadmap">
+      <div class="rm-card">
+        <div class="rm-title done">✓ Completed</div>
+        <div class="rm-item done">Staging layer with cleaning and standardisation</div>
+        <div class="rm-item done">Data quality report (8 checks, persisted)</div>
+        <div class="rm-item done">Deduplication via ROW_NUMBER()</div>
+        <div class="rm-item done">Star schema — fact + 5 dimensions</div>
+        <div class="rm-item done">ETL logging and referential integrity validation</div>
+      </div>
+      <div class="rm-card">
+        <div class="rm-title progress">→ In progress</div>
+        <div class="rm-item progress">Analytics queries and KPI layer</div>
+        <div class="rm-item progress">Power BI dashboard</div>
+        <div class="rm-section-gap"></div>
+        <div class="rm-title planned">v2 Planned</div>
+        <div class="rm-item planned">Incremental loading strategy</div>
+        <div class="rm-item planned">Partitioning for performance</div>
+        <div class="rm-item planned">Apache Airflow orchestration</div>
+        <div class="rm-item planned">Grafana monitoring integration</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STACK -->
+  <section class="section">
+    <div class="section-label">Stack</div>
+    <div class="section-title">Tools &amp; technologies</div>
+    <div class="stack">
+      <span class="stack-tag">MySQL 8</span>
+      <span class="stack-tag">MySQL Workbench</span>
+      <span class="stack-tag">Power BI</span>
+      <span class="stack-tag">Git / GitHub</span>
+      <span class="stack-tag">GitHub Pages</span>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta-row">
+    <a class="btn btn-primary" href="https://github.com/YOUR_USERNAME/swiggy-etl-pipeline">View on GitHub →</a>
+    <a class="btn btn-secondary" href="https://github.com/YOUR_USERNAME/swiggy-etl-pipeline/tree/main/sql">SQL scripts</a>
+    <a class="btn btn-secondary" href="https://github.com/YOUR_USERNAME/swiggy-etl-pipeline/blob/main/README.md">Full README</a>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span class="footer-name">Stephen Adejo</span>
+    <span class="footer-meta">Data Analytics &nbsp;·&nbsp; Analytics Engineering &nbsp;·&nbsp; Data Warehousing</span>
+  </footer>
+
+</div>
+
+</body>
+</html>
